@@ -61,13 +61,6 @@ def get_forex_scan():
         avgvol=None
         last=float(s.iloc[-1]); rsi_last=float(rsi.iloc[-1]) if pd.notna(rsi.iloc[-1]) else 50.0
         above20=last>float(ema20.iloc[-1]); above50=last>float(ema50.iloc[-1]); trendstack=float(ema20.iloc[-1])>float(ema50.iloc[-1])
-        # ATR(14) based on daily high/low/previous close when available.
-        atr_value=np.nan
-        if high is not None and low is not None and ticker in high.columns and ticker in low.columns:
-            h=high[ticker].reindex(s.index); l=low[ticker].reindex(s.index); prev=s.shift(1)
-            tr=pd.concat([(h-l).abs(),(h-prev).abs(),(l-prev).abs()],axis=1).max(axis=1)
-            atr_series=tr.rolling(14,min_periods=10).mean()
-            if len(atr_series.dropna()): atr_value=float(atr_series.dropna().iloc[-1])
         momentum=float(s.iloc[-1]/s.iloc[-6]-1)*100 if len(s)>6 else 0
         prior=s.iloc[-21:-1]
         breakout_up=bool(len(prior)>=15 and last>float(prior.max())); breakout_down=bool(len(prior)>=15 and last<float(prior.min()))
@@ -79,15 +72,7 @@ def get_forex_scan():
         if score>=70 and above50 and rsi_last>=50: signal='BULLISH'
         elif score<=35 and not above50 and rsi_last<50: signal='BEARISH'
         else: signal='MIXED'
-        # Direction-aware ATR planning levels; analytical estimates, not trade instructions.
-        if pd.notna(atr_value) and atr_value > 0 and signal in ('BULLISH','BEARISH'):
-            entry=last
-            stop=entry-1.5*atr_value if signal=='BULLISH' else entry+1.5*atr_value
-            target=entry+3.0*atr_value if signal=='BULLISH' else entry-3.0*atr_value
-            rr=abs(target-entry)/abs(entry-stop) if entry!=stop else np.nan
-        else:
-            entry=stop=target=rr=np.nan
-        rows.append({'Pair':pair,'Ticker':ticker,'Last':last,'RSI (14)':round(rsi_last,1),'Momentum 5D %':round(momentum,2),'Above EMA20':above20,'Above EMA50':above50,'EMA20 > EMA50':trendstack,'20D Breakout':'UP' if breakout_up else 'DOWN' if breakout_down else '—','Opportunity Score':score,'Signal':signal,'ATR14':round(atr_value,6) if pd.notna(atr_value) else np.nan,'Suggested Entry':round(entry,6) if pd.notna(atr_value) and signal in ('BULLISH','BEARISH') else np.nan,'Suggested Stop':round(stop,6) if pd.notna(atr_value) and signal in ('BULLISH','BEARISH') else np.nan,'Suggested Target':round(target,6) if pd.notna(atr_value) and signal in ('BULLISH','BEARISH') else np.nan,'Risk/Reward':round(rr,2) if pd.notna(atr_value) and signal in ('BULLISH','BEARISH') else np.nan,'As Of':s.index[-1].date().isoformat()})
+        rows.append({'Pair':pair,'Ticker':ticker,'Last':last,'RSI (14)':round(rsi_last,1),'Momentum 5D %':round(momentum,2),'Above EMA20':above20,'Above EMA50':above50,'EMA20 > EMA50':trendstack,'20D Breakout':'UP' if breakout_up else 'DOWN' if breakout_down else '—','Opportunity Score':score,'Signal':signal,'As Of':s.index[-1].date().isoformat()})
     df=pd.DataFrame(rows)
     if not df.empty: df=df.sort_values(['Opportunity Score','Momentum 5D %'],ascending=False).reset_index(drop=True); df.insert(0,'Rank',range(1,len(df)+1))
     return df,histories
@@ -195,14 +180,6 @@ with tabs[0]:
         if cls!='All': f=f[f['Asset Class']==cls]
         if sigf!='All': f=f[f['Signal']==sigf]
         styled_table(f.head(max_rows),500)
-        st.markdown('**Highest-conviction screening candidates**')
-        strong=f[((f['Asset Class']=='Forex') & (((f['Signal']=='BULLISH') & (f['Score']>=80)) | ((f['Signal']=='BEARISH') & (f['Score']<=25)))) |
-                 ((f['Asset Class']=='US Stock') & (f['Score'].abs()>=5) & (f['Signal'].isin(['BULLISH','BEARISH'])))]
-        if not strong.empty:
-            styled_table(strong.head(15),360)
-            st.caption('Candidates are ranked by the scanner’s heuristic score; they are not probabilities of success. Confirm data, liquidity, and event risk.')
-        else:
-            st.info('No candidates currently meet the stricter high-quality filter.')
         st.download_button('Download opportunity feed CSV',f.to_csv(index=False).encode(), 'baldeh_opportunity_feed.csv','text/csv',use_container_width=True)
     else: st.warning('No combined opportunity rows are currently available.')
 with tabs[1]:
@@ -272,14 +249,8 @@ with tabs[5]:
         st.download_button('Download current alert list',alert_df.to_csv(index=False).encode(),'baldeh_alerts.csv','text/csv',use_container_width=True)
     else: st.info('No candidates currently match your alert thresholds.')
 with tabs[6]:
-    st.subheader('Position Risk Calculator & ATR Planning')
-    st.write('Use the Forex Scanner tab to view ATR-based illustrative entry, stop and target levels. This calculator estimates risk budget and stop distance; it does not place trades. Broker pip values and contract sizes differ.')
-    if not forex.empty:
-        planned=forex[forex['Signal'].isin(['BULLISH','BEARISH']) & forex['Suggested Stop'].notna()].copy()
-        if not planned.empty:
-            st.markdown('**Illustrative ATR-based forex levels (1.5× ATR stop / 3× ATR target)**')
-            styled_table(planned[['Pair','Signal','Last','ATR14','Suggested Entry','Suggested Stop','Suggested Target','Risk/Reward','As Of']].sort_values('Opportunity Score',ascending=False),360)
-            st.caption('Levels are mechanical examples from daily data, not personalized recommendations. Recheck current bid/ask, spread, market conditions, and broker quotes before using them.')
+    st.subheader('Position Risk Calculator')
+    st.write('Calculate position sizing from account risk and stop distance. This generic calculator does not place trades; pip value and contract size differ by broker and pair.')
     a,b=st.columns(2)
     with a:
         account=st.number_input('Account balance',min_value=0.0,value=1000.0,step=100.0)
@@ -310,7 +281,7 @@ with tabs[7]:
 
     **US stock score:** the original weighted relative-strength score compares 1M (20%), 3M (30%), 6M (30%), and 12M (20%) excess returns against SPY. Trend checks use 50-day and 200-day moving averages.
 
-    **Alerts:** in-app candidates are filterable/downloadable; GitHub Actions can email newly detected or changed qualifying signals. Email ranking emphasizes stronger candidates and includes an attached full CSV report.
+    **Alerts:** currently displayed in the app and downloadable as CSV; background notifications require a separate notification service and credentials.
 
     **Limitations:** market data can be delayed, incomplete, or revised. Forex data and trading hours may differ from broker feeds. This educational research tool does not execute trades and is not financial advice. Validate signals and use your own risk controls.
     """)

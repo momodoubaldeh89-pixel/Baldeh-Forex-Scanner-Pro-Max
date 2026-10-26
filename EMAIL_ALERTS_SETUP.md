@@ -41,3 +41,16 @@ Secrets are configured in GitHub, not in Streamlit Community Cloud, because the 
 - The workflow checks once per hour (at minute 17), subject to GitHub Actions scheduling delays and usage limits.
 - To reduce repeated messages, the workflow emails only when a symbol newly qualifies or its qualifying direction changes. It updates `signal_state.json` between runs.
 - Yahoo Finance data is daily in this version. This is not a real-time broker feed, and alerts do not execute trades. Always verify signals and risk independently.
+
+
+## Top-10 email behavior
+
+The hourly job ranks qualifying Forex, US-stock, and commodity signals together using a rule-based quality score and emails only newly qualifying/changed entries that appear in the current top 10. If the top 10 has not changed, no email is sent. The score is a ranking aid, not a probability of profit.
+
+## Updating an existing GitHub repository on mobile
+
+1. Download and extract this ZIP.
+2. In your repository, replace the root files `hourly_email_alerts.py`, `app.py`, `Baldeh_Forex_scanner.py`, `requirements.txt`, `README.md`, `EMAIL_ALERTS_SETUP.md`, and `signal_state.json` with the matching files from this ZIP.
+3. Ensure the workflow file is uploaded at the exact path `.github/workflows/hourly-email-alerts.yml` (not in the repository root). GitHub does not show the workflow YAML in the root file list.
+4. Keep the existing repository Actions secrets `GMAIL_SENDER`, `GMAIL_APP_PASSWORD`, and `ALERT_RECIPIENT`. Never put the Gmail App Password into a source file or commit.
+5. Open **Actions → Baldeh hourly email alerts → Run workflow** to test. A successful workflow run confirms the script ran; a new email is sent only if there are newly qualifying/changed top-10 signals.

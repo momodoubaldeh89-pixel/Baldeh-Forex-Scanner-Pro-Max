@@ -147,11 +147,6 @@ def scan_stocks() -> list[dict]:
 
 
 def send_email(new_alerts: list[dict]) -> None:
-    # Final safety cap: never send more than 10 instruments in one email.
-    new_alerts = sorted(new_alerts, key=lambda x: (x.get("quality_score", 0), x.get("score", 0)), reverse=True)[:10]
-    if not new_alerts:
-        print("No new alerts to email.")
-        return
     sender = os.environ.get("GMAIL_SENDER", "").strip()
     password = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
     recipient = os.environ.get("ALERT_RECIPIENT", "").strip()
@@ -165,7 +160,8 @@ def send_email(new_alerts: list[dict]) -> None:
              "Quality score (0-100) is a rule-based ranking, NOT a win probability.",
              "Intraday signals use 1-hour bars; swing signals use daily bars.",
              "These are screening alerts, not trade instructions. Data can be delayed or unavailable; verify prices and risk before acting.", ""]
-    for rank, a in enumerate(new_alerts, start=1):
+    ranked = sorted(new_alerts, key=lambda x: (x.get("quality_score", 0), x.get("score", 0)), reverse=True)
+    for rank, a in enumerate(ranked, start=1):
         lines.extend([f"#{rank} | {a['signal']} | {a['class']} | {a['asset']} | {a.get('timeframe', 'Swing')}",
                       f"Quality: {a.get('quality_score', 0):.1f}/100 | Raw score: {a['score']} | Latest price: {a['price']:.5f}",
                       f"Details: {a['details']}", ""])

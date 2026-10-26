@@ -25,3 +25,15 @@ Mobile-friendly Streamlit scanner combining Forex technical screening with US st
 - Alerts are in-app scan results and CSV downloads, not background email/SMS/push notifications.
 - The risk calculator estimates cash risk and pip distance, not broker-specific lots. Verify pip value and contract size before trading.
 - This is an educational research tool, not financial advice, and it does not place trades.
+
+
+## Hourly email alerts: stocks, Forex and commodities
+The GitHub Actions workflow checks for newly qualifying or changed signals in US stocks, 16 Forex pairs, and selected commodity futures. Forex and commodities are evaluated on both 1-hour bars (intraday) and daily bars (swing). Stocks use the existing daily relative-strength/trend rules. Alerts are based on EMA20/EMA50, RSI, momentum, and the stock relative-strength model; instruments that do not meet the defined criteria are not emailed.
+
+Commodity futures symbols include gold, silver, WTI and Brent crude, natural gas, copper, corn, wheat, soybeans, coffee, cotton and sugar where Yahoo Finance data is available. Futures are not the same as spot prices or ETFs, and data availability varies. Hourly workflow execution does not guarantee that market prices update every hour.
+
+For Gmail configuration and GitHub Actions secrets, see `EMAIL_ALERTS_SETUP.md`.
+
+## Top-10 cross-market email ranking (updated)
+
+The hourly email workflow now ranks qualifying signals together across Forex, US stocks and commodities, then considers only the top 10. A rule-based Quality score from 0–100 is used to compare the different asset classes; it is a screening rank, not a probability of profit. Email is sent when a signal newly enters the top 10 or its direction changes while in the top 10. If the top 10 is unchanged, no email is sent, to avoid hourly inbox spam. Commodity futures and hourly data availability depend on Yahoo Finance.
